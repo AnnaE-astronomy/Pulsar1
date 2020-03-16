@@ -24,7 +24,7 @@ def tableCreate(args):
         row = 0
         rows = []
         for i in pulsars.iterrows():
-            if i[4] == "*":
+            if type(i[9]) == np.ma.core.MaskedConstant:
                 rows.append(row)
             row +=1
         pulsars.remove_rows(rows)
@@ -35,10 +35,9 @@ def tableCreate(args):
             row = 0
             rows = []
             error = int(i[-3:-1])
-            arcsec_pos = 6
             for j in pulsars.iterrows():
-                error_RA = (10 ** (arcsec_pos - len(j[0]))) * int(j[1])
-                error_DEC = (10 ** (arcsec_pos - len(j[2]))) * int(j[3])
+                error_RA = j[4]
+                error_DEC = j[7] #j is pulsar 
 
                 if error_RA >= error or error_DEC >= error:
                     rows.append(row)
@@ -61,12 +60,12 @@ def tableCreate(args):
             for j in pulsars.iterrows():
                 row += 1
 
-                pos_RA = list((int(k) for k in j[0].split(".")[0].split(":")))
+                pos_RA = list((int(k) for k in str(j[3]).split(".")[0].split(":"))) # change to using skycoord objects
                 try:
                     pos_RA.append(int(j[0].split(".")[1]))
                 except:
                     pass
-                pos_DEC = list((int(k) for k in j[2].split(".")[0][1:].split(":")))
+                pos_DEC = list((int(k) for k in str(j[6]).split(".")[0][1:].split(":")))
                 if j[2][0] == "+":
                     pos_DEC[0] += 90
                 else:
@@ -204,4 +203,6 @@ def range_check(pos1, pos2, maxD):
         return False
     return True
 
+
+#table = tableGet(["V[test4]","hasDM", "posErrorASec[01]", "posRange[1:0:0.0,2:0:0.0,-90:0:0.0,90:0:0.0]"])
 
