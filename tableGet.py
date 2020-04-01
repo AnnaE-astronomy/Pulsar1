@@ -1,4 +1,4 @@
-
+from astropy.coordinates import SkyCoord
 import pickle
 from astropy.table import QTable
 import astropy.units as u
@@ -21,98 +21,39 @@ def tableCreate(args):
 
 
     if "hasDM" in args:
-        row = 0
         rows = []
-        for i in pulsars.iterrows():
-            if type(i[9]) == np.ma.core.MaskedConstant:
-                rows.append(row)
-            row +=1
+
+        for i in range(len(pulsars)):
+            if type(pulsars["DM"][i]) == np.ma.core.MaskedConstant:
+                rows.append(i)
         pulsars.remove_rows(rows)
 
     for i in args:
 
         if "posErrorASec" in i:
-            row = 0
             rows = []
             error = int(i[-3:-1])
-            for j in pulsars.iterrows():
-                error_RA = j[4]
-                error_DEC = j[7] #j is pulsar 
+            for j in range(len(pulsars)):
+                error_RA = pulsars["RAJ_ERR"][j]
+                error_DEC = pulsars["DECJ_ERR"][j]
 
                 if error_RA >= error or error_DEC >= error:
-                    rows.append(row)
-                row += 1
+                    rows.append(j)
             pulsars.remove_rows(rows)
         if "posRange" in i:
             ranges = i[9:-1].split(',')
-            for j in range(len(ranges)):
-                range_part = list((int(k) for k in ranges[j].split(".")[0].split(":")))
-                try:
-                    range_part.append(float("0." + ranges[j].split(".")[1]))
-                except:
-                    pass
-                if j == 2 or j == 3:
-                    range_part[0] += 90
-                ranges[j] = range_part
+            print(ranges)
+            coord_min = SkyCoord(ranges[0], ranges[2], unit=("hour","deg"))
+            coord_max = SkyCoord(ranges[1], ranges[3], unit=("hour","deg"))
+
 
             rows = []
-            row = -1
-            for j in pulsars.iterrows():
-                row += 1
+            coords = SkyCoord(pulsars['RAJ'], pulsars['DECJ'], unit=('hour', 'deg'))
+            for j in range(len(pulsars)):
 
-                pos_RA = list((int(k) for k in str(j[3]).split(".")[0].split(":"))) # change to using skycoord objects
-                try:
-                    pos_RA.append(int(j[0].split(".")[1]))
-                except:
-                    pass
-                pos_DEC = list((int(k) for k in str(j[6]).split(".")[0][1:].split(":")))
-                if j[2][0] == "+":
-                    pos_DEC[0] += 90
-                else:
-                    pos_DEC[0] = 90 - pos_DEC[0]
-
-                try:
-                    pos_DEC.append(int(j[2].split(".")[1]))
-                except:
-                    pass
-                for k in range(len(pos_RA)):
-
-                    if int(ranges[0][k]) > pos_RA[k]:
-                        rows.append(row)
-                        break
-                    if int(ranges[0][k] != pos_RA[k]):
-                        break
-
-                if row in rows:
-                    continue
-
-                for k in range(len(pos_RA)):
-
-                    if int(ranges[1][k]) < pos_RA[k]:
-
-                        rows.append(row)
-                        break
-                    if int(ranges[1][k] != pos_RA[k]):
-                        break
-
-                if row in rows:
-                    continue
-
-                for k in range(len(pos_DEC)):
-                    if int(ranges[2][k]) > pos_DEC[k]:
-                        rows.append(row)
-                        break
-                    elif int(ranges[2][k] != pos_DEC[k]):
-                        break
-                if row in rows:
-                    continue
-
-                for k in range(len(pos_DEC)):
-                    if int(ranges[3][k]) < pos_DEC[k]:
-                        rows.append(row)
-                        break
-                    elif int(ranges[3][k]) != pos_DEC[k]:
-                        break
+                if coords[j].ra.deg < coord_min.ra.deg or coords[j].ra.deg > coord_max.ra.deg or \
+                        coords[j].dec.deg < coord_min.dec.deg or coords[j].dec.deg > coord_max.dec.deg:
+                    rows.append(j)
 
             pulsars.remove_rows(rows)
 
@@ -203,6 +144,9 @@ def range_check(pos1, pos2, maxD):
         return False
     return True
 
-
-#table = tableGet(["V[test4]","hasDM", "posErrorASec[01]", "posRange[1:0:0.0,2:0:0.0,-90:0:0.0,90:0:0.0]"])
-
+print("STARTING")
+table = tableGet(["V[test23]","hasDM", "posErrorASec[01]", "posRange[1:0:0.0,23:59:59.59,-90:0:0.0,90:0:0.0]"])
+print(table[0])
+for i in table["DM"]:
+    #print(type(i))
+    pass
