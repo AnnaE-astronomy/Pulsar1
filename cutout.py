@@ -20,7 +20,6 @@ def cutOut(fits_file, radius, pulsarDataASKAP, pulsarDataStokesV, pulsarDataStok
         pulsarDataStokesIislands = pulsarDataStokesI[1]
         pulsarDataStokesI = pulsarDataStokesI[0]
         secondMarkers = True
-    print(pulsarDataStokesV["skycoord"].ra.deg, pulsarDataStokesV["skycoord"].dec.deg, pulsarDataStokesI["skycoord"].ra.deg, pulsarDataStokesI["skycoord"].dec.deg)
 
     # Make a SkyCoord object for the source position
     ra_unit = u.hourangle
@@ -66,7 +65,6 @@ def cutOut(fits_file, radius, pulsarDataASKAP, pulsarDataStokesV, pulsarDataStok
                          + pulsarDataStokesV["dec_err"]  **2 ) ** 1/2)) * 500
     else:
         size = 20
-    print("Size: "+str(size))
     stokesV = plt.plot(pulsarDataStokesV["skycoord"].ra.deg, pulsarDataStokesV["skycoord"].dec.deg,
                              color="magenta",marker="x", markersize=size, transform=ax.get_transform("fk5"))
 
@@ -106,9 +104,10 @@ def cutOut(fits_file, radius, pulsarDataASKAP, pulsarDataStokesV, pulsarDataStok
     plt.close()
 
 def create_cutout(fits_file, title, radius, markers, stokesVersion, position=None, legend = False, stokestype=""):
-    ra_unit = u.hourangle
+    # Creates a cutout of a specific racs mosiac based on positions of a pulsar in ATNF
+    # and adds position markers for its position in different catalogs
 
-    # Open the FITS image and make a World Coordinate System object
+    # Opens the FITS image and make a World Coordinate System object
     try:
         with fits.open(fits_file) as hdul:
             data, header = hdul[0].data, hdul[0].header
@@ -136,6 +135,8 @@ def create_cutout(fits_file, title, radius, markers, stokesVersion, position=Non
     ax.set_ylabel("Dec (J2000)")
     ax.set_xlabel("RA (J2000)")
     ax.set_title(title)
+
+    # creates a marker for each position and if legend is set creates a legend from them`
     markers_names = []
     markers_order = []
     name = ""
@@ -198,7 +199,6 @@ def create_cutout(fits_file, title, radius, markers, stokesVersion, position=Non
 
 
     if len(markers_names) != 0:
-        print("Making legend")
         ax.legend(markers_order, markers_names, loc=4)
     print(stokestype, "STOKES TYPE")
 
@@ -208,13 +208,13 @@ def create_cutout(fits_file, title, radius, markers, stokesVersion, position=Non
 
 
 def stokesIMarker(marker, radius, ax):
+    # Creates an Ellipse marker and sizes based on zoom and error in position if component
     if marker["stokesType"] == "components":
         stokesIError = [marker["ra_err"] if marker["ra_err"] != 0 else 1,
                         marker["dec_err"] if marker["dec_err"] != 0 else 1]
 
     else:
         stokesIError = [1, 1]
-    print(marker["stokesType"], marker["stokesType"] == "components")
     if marker["stokesType"] == "components":
         color = "orange"
     else:
