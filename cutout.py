@@ -103,7 +103,7 @@ def cutOut(fits_file, radius, pulsarDataASKAP, pulsarDataStokesV, pulsarDataStok
     plt.show()
     plt.close()
 
-def create_cutout(fits_file, title, radius, markers, stokesVersion, position=None, legend = False, stokestype=""):
+def create_cutout(fits_file, title, radius, markers, stokesVersion, position=None, legend = False, stokestype="", pulsarFilePath="pulsars"):
     # Creates a cutout of a specific racs mosiac based on positions of a pulsar in ATNF
     # and adds position markers for its position in different catalogs
 
@@ -135,6 +135,9 @@ def create_cutout(fits_file, title, radius, markers, stokesVersion, position=Non
     ax.set_ylabel("Dec (J2000)")
     ax.set_xlabel("RA (J2000)")
     ax.set_title(title)
+    ylim = plt.ylim()
+    xlim = plt.xlim()
+
 
     # creates a marker for each position and if legend is set creates a legend from them`
     markers_names = []
@@ -201,8 +204,9 @@ def create_cutout(fits_file, title, radius, markers, stokesVersion, position=Non
     if len(markers_names) != 0:
         ax.legend(markers_order, markers_names, loc=4)
     print(stokestype, "STOKES TYPE")
-
-    plt.savefig('pulsars/' + name + '/cutout' + str(radius) + "," + stokesVersion + "," + stokestype + ".png")
+    plt.ylim(ylim[0],ylim[1])
+    plt.xlim(xlim[0],ylim[1])
+    plt.savefig(pulsarFilePath + "/" + name + '/cutout' + str(radius) + "," + stokesVersion + "," + stokestype + ".png")
     plt.close()
 
 
@@ -237,17 +241,18 @@ def stokesVMarker(marker, radius, ax):
         color = "blue"
         markerType = "o"
 
-    stokesV = plt.plot(marker["skycoord"].ra.deg, marker["skycoord"].dec.deg,
-                       color=color, marker=markerType, markersize=size, transform=ax.get_transform("fk5"), alpha=0.5)[0]
+    stokesV = plt.plot(marker["skycoord"].ra.deg, marker["skycoord"].dec.deg, color=color, marker=markerType, markersize=size, transform=ax.get_transform("fk5"), alpha=0.5)[0]
     return stokesV
 
 def atnfMarker(marker, ax):
     xmin, xmax, ymin, ymax = plt.axis()
-    xAverage = (xmin + xmax) / 2
-    yAverage = (ymin + ymax) / 2
 
-    ATNF = plt.axvline(x=xAverage, color='red', ymin=0, ymax=1, linewidth=0.25)
-    plt.axhline(y=yAverage, color='red', xmin=0, xmax=1, linewidth=0.25)
+
+    #ATNF = plt.axvline(x=xAverage, color='red', ymin=0, ymax=1, linewidth=0.25)
+    #plt.axhline(y=yAverage, color='red', xmin=0, xmax=1, linewidth=0.25)
+
+    ATNF = plt.plot(marker["skycoord"].ra.deg, marker["skycoord"].dec.deg, color="red", marker="+", markersize=25, transform=ax.get_transform("fk5"), alpha=0.5)[0]
+
     return ATNF
 
 
