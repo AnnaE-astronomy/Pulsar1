@@ -1,13 +1,16 @@
 import sys
+from astropy.table import Table, vstack, Column, QTable
 import astropy.units as u
 import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse
+from matplotlib.patches import Ellipse, Polygon
 from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.nddata import Cutout2D
 from astropy.coordinates import SkyCoord
 from astropy.visualization import ZScaleInterval, ImageNormalize
 from PIL import Image
+import scipy.stats
+import numpy as np
 
 import math
 
@@ -103,20 +106,20 @@ def cutOut(fits_file, radius, pulsarDataASKAP, pulsarDataStokesV, pulsarDataStok
     plt.show()
     plt.close()
 
-def create_cutout(fits_file, title, radius, markers, stokesVersion, position=None, legend = False, stokestype="", pulsarFilePath="pulsars"):
+def create_cutout(fits_filePath, title, radius, markers, racsType, position=None, legend = False, stokestype="", pulsarFilePath="pulsars"):
     # Creates a cutout of a specific racs mosiac based on positions of a pulsar in ATNF
     # and adds position markers for its position in different catalogs
 
     # Opens the FITS image and make a World Coordinate System object
     try:
-        with fits.open(fits_file) as hdul:
+        with fits.open(fits_filePath) as hdul:
             data, header = hdul[0].data, hdul[0].header
             wcs = WCS(header, naxis=2)
             if position == None:
                 position = SkyCoord(ra=header["CRVAL1"], dec=header["CRVAL2"], unit=(u.deg, u.deg))
 
     except Exception as e:
-        print(e, fits_file)
+        print(e, fits_filePath)
         return
     # Make a postage stamp cutout at the area of interest
     # and change the data units from Jy to mJy
@@ -148,6 +151,11 @@ def create_cutout(fits_file, title, radius, markers, stokesVersion, position=Non
         if i["type"] == "RACS_StokesI":
             artist = stokesIMarker(i, radius, ax)
             ax.add_artist(artist)
+            test = testMarker(i, radius, ax)
+            try:
+                ax.add_artist(test)
+            except Exception as e:
+                print(e)
             if legend == "total":
                 markers_order.append(artist)
                 markers_names.append(i["type"])
@@ -206,7 +214,7 @@ def create_cutout(fits_file, title, radius, markers, stokesVersion, position=Non
     print(stokestype, "STOKES TYPE")
     plt.ylim(ylim[0],ylim[1])
     plt.xlim(xlim[0],ylim[1])
-    plt.savefig(pulsarFilePath + "/" + name + '/cutout' + str(radius) + "," + stokesVersion + "," + stokestype + ".png")
+    plt.savefig(pulsarFilePath + "/" + name + '/cutout' + str(radius) + "," + racsType + "," + stokestype + ".png")
     plt.close()
 
 
@@ -214,8 +222,8 @@ def create_cutout(fits_file, title, radius, markers, stokesVersion, position=Non
 def stokesIMarker(marker, radius, ax):
     # Creates an Ellipse marker and sizes based on zoom and error in position if component
     if marker["stokesType"] == "components":
-        stokesIError = [marker["ra_err"] if marker["ra_err"] != 0 else 1,
-                        marker["dec_err"] if marker["dec_err"] != 0 else 1]
+        stokesIError = [marker["ra_err"] if marker["ra_err"] != 0 else 0,
+                        marker["dec_err"] if marker["dec_err"] != 0 else 0]
 
     else:
         stokesIError = [1, 1]
@@ -223,14 +231,37 @@ def stokesIMarker(marker, radius, ax):
         color = "orange"
     else:
         color = "green"
-    stokesI = Ellipse((marker["skycoord"].ra.deg, marker["skycoord"].dec.deg),
-                      (math.sqrt(stokesIError[0]) / 3600 * 2000 * math.sqrt(radius)),
-                      (math.sqrt(stokesIError[1]) / 3600 * 2000 * math.sqrt(radius)), linewidth=2.5, edgecolor=color,
-                      facecolor="none", transform=ax.get_transform("fk5"), alpha=0.5)
+    #stokesI = Ellipse((marker["skycoord"].ra.deg, marker["skycoord"].dec.deg),
+     #                 (math.sqrt(stokesIError[0]) / 3600 * 2000 * math.sqrt(radius)),
+      #                (math.sqrt(stokesIError[1]) / 3600 * 2000 * math.sqrt(radius)) , linewidth=2.5, edgecolor=color,
+       #               facecolor="none", transform=ax.get_transform("fk5"), alpha=0.5)
+    stokesI = Ellipse((marker["skycoord"].ra.deg, marker["skycoord"].dec.deg), (stokesIError[0] * u.arcsec).to(u.deg).value,
+                      (stokesIError[1] * u.arcsec).to(u.deg).value,
+                linewidth=2.5, edgecolor=color, facecolor="none", transform=ax.get_transform("fk5"), alpha=0.5)
+
+    return stokesI
+
+
+def testMarker(marker, radius, ax):
+    # Creates an Ellipse marker and sizes based on zoom and error in position if component
+    if marker["stokesType"] == "components":
+        stokesIError = [marker["ra_err"] if marker["ra_err"] != 0 else 0,
+                        marker["dec_err"] if marker["dec_err"] != 0 else 0]
+
+    color = "blue"
+
+    #stokesI = Ellipse((marker["skycoord"].ra.deg, marker["skycoord"].dec.deg), stokesIError[0], stokesIError[1],
+     #                 linewidth=2.5, edgecolor=color, facecolor="none", transform=ax.get_transform("fk5"), alpha=0.5)
+    try:
+        stokesI = Polygon(polygon_coords([marker["skycoord"].ra,marker["skycoord"].dec], stokesIError[0] * u.arcsec, stokesIError[1] * u.arcsec, 10),
+                          color=color, transform=ax.get_transform("fk5"))
+    except Exception as e:
+        print(e)
+
     return stokesI
 
 def stokesVMarker(marker, radius, ax):
-
+    # Maybe use a hexagon here instead? Can make it close to an ellipse but different enough that it is visually distinct
     if marker["stokesType"] == "components":
         size = math.sqrt((((marker["ra_err"] * math.sin(marker["dec_err"])) ** 2
                                    + marker["dec_err"] ** 2) ** 1 / 2) * radius) * 800
@@ -245,15 +276,97 @@ def stokesVMarker(marker, radius, ax):
     return stokesV
 
 def atnfMarker(marker, ax):
-    xmin, xmax, ymin, ymax = plt.axis()
-
-
-    #ATNF = plt.axvline(x=xAverage, color='red', ymin=0, ymax=1, linewidth=0.25)
-    #plt.axhline(y=yAverage, color='red', xmin=0, xmax=1, linewidth=0.25)
 
     ATNF = plt.plot(marker["skycoord"].ra.deg, marker["skycoord"].dec.deg, color="red", marker="+", markersize=25, transform=ax.get_transform("fk5"), alpha=0.5)[0]
 
     return ATNF
+
+
+def get_rms(pulsarData, mosaicFilePaths, pulsarFilePaths, stokesType, size=20, creating_upper_limits = True):
+    # loads image and creates sub-image
+    # takes sub-image and finds standard deviation
+    # it then looks at the standard deviation from the inter-quartile range
+    sigma_stds = np.zeros(len(pulsarData["ASKAP"]))
+    sigma_iqrs = np.zeros(len(pulsarData["ASKAP"]))
+
+    for i in range(len(pulsarData["ASKAP"])):
+        try:
+            position = pulsarData["ASKAP"]["skycoord"][i]
+            if stokesType == "racsi":
+                file_name = mosaicFilePaths[1] + "RACS_" + pulsarData["racsi"]["fileName"][i] + ".EPOCH00.I.fits"
+            elif stokesType == "racsv":
+                file_name = mosaicFilePaths[0] + "RACS_test4_1.05_" + pulsarData["racsi"]["fileName"][i] + ".fits"
+            with fits.open(file_name) as hdul:
+
+                data, header = hdul[0].data, hdul[0].header
+                wcs = WCS(header, naxis=2)
+            cutout = Cutout2D(data, position, size, wcs=wcs)
+            data = cutout.data * 1000
+            std = data.std()
+            plt.clf()
+            data_array = np.zeros(size ** 2)
+            for j in range(len(data)):
+                for k in range(len(data[j])):
+                    data_array[size * j + k] = data[j][k]
+            plt.hist(data_array, bins=40, density=True, stacked=True)
+            x_vals = np.arange(np.amin(data_array), np.amax(data_array), 0.00001)
+            y_vals = scipy.stats.norm.pdf(x_vals,np.mean(data_array), std)
+            plt.plot(x_vals, y_vals)
+            #print(x_vals)
+            #print(y_vals)
+            plt.xlabel(r'Flux Density (mJy beam$^{-1}$)')
+            plt.ylabel('Portion of Pixels Around x Flux Density')
+            plt.title("Histogram of Flux Density Around the Pulsar {} (StokesV)".format(pulsarData["ASKAP"]["NAME"][i]))
+            for j in [-2, -1, 1, 2]:
+                plt.vlines(np.mean(data) + std * j, 0, scipy.stats.norm.pdf([np.mean(data) + std * j], np.mean(data_array), std)[0], color="black")
+
+            plt.savefig(pulsarFilePaths + "/" + pulsarData["ASKAP"]["NAME"][i] + "/std_" + stokesType + ".png")
+            print("did STD calculation: " + str(i) + "/" + str(len(pulsarData["ASKAP"])))
+            plt.close()
+            sigma_iqr = scipy.stats.iqr(data) / 1.349
+            print(std, sigma_iqr)
+            sigma_stds[i] = std
+            sigma_iqrs[i] = sigma_iqr
+
+            try:
+                file = open(pulsarFilePaths + "/" + pulsarData["ASKAP"]["NAME"][i] + "/std_info_" + stokesType, "x")
+            except Exception as e:
+                file = open(str(pulsarFilePaths) + "/" + str(pulsarData["ASKAP"]["NAME"][i]) + "/std_info_" + stokesType, "w")
+
+            info = """dataValues: {}
+            sigma: {}
+            iqr_sigma: {}""".format(np.array2string(data), str(std), str(sigma_iqr))
+
+            file.write(info)
+            file.close()
+        except Exception as e:
+            print(e, i)
+    pulsarData[stokesType].add_column(Column(sigma_stds, name="sigmaOfMosaic"))
+    pulsarData[stokesType].add_column(Column(sigma_iqrs, name="sigmaOfMosaicIQR"))
+
+    if creating_upper_limits == True:
+        RACS_has_upper_limit = np.array(np.zeros(len(pulsarData["ASKAP"])), dtype=bool)
+        for i in range(len(pulsarData[stokesType + "_match"])):
+            RACS_has_upper_limit[i] = False if pulsarData[stokesType + "_match"][i] else True
+            if RACS_has_upper_limit[i]:
+                pulsarData[stokesType]["flux_peak"][i] = 3 * sigma_iqrs[i]
+                pulsarData[stokesType]["flux_int"][i] = 3 * sigma_iqrs[i]
+        pulsarData[stokesType].add_column(Column(RACS_has_upper_limit, name="hasUpperLimit"))
+
+
+
+
+    #pulsarData[stokesType].add_column(Column(sigma_iqrs, name="detectionSigmas"))
+
+
+    return pulsarData
+
+
+
+
+
+
+
 
 
 def createImage(images, dimensions, imageSize):
@@ -265,6 +378,7 @@ def createImage(images, dimensions, imageSize):
         for j in range(dimensions[1]):
             imageMain = addImagePart(i, j, imageMain, images[i + j * dimensions[0]], imageSize)
     return imageMain
+
 
 
 def addImagePart(x, y, imageMain, imageToAdd, imageSize):
@@ -294,3 +408,13 @@ def addImage(x, y, image1, image2):
         dst.paste(image2, (int(image1.width/2), int(image1.height/2)))
     return dst
 
+
+
+def polygon_coords(center, error_RA, error_DEC, sides):
+    angles = list(i * 2 * math.pi / sides for i in range(sides))
+    coords = np.zeros((sides, 2)) * u.deg
+    for i in range(sides):
+        coords[i][0] = center[0] + np.cos(angles[i]) * error_RA
+        coords[i][1] = center[1] + np.sin(angles[i]) * error_DEC
+
+    return coords
